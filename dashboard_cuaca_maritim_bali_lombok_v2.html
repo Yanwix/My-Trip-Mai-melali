@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#020617">
+    <meta name="description" content="InaWave v2.0 - Professional Marine Weather Dashboard for Bali-Lombok with AI recommendations">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="InaWave Marine">
+    
+    <!-- OpenGraph Meta Tags -->
+    <meta property="og:title" content="InaWave v2.0 Marine Dashboard">
+    <meta property="og:description" content="Professional Marine Weather Dashboard for Bali-Lombok">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://yanwix.github.io/InaWave/">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="InaWave v2.0">
+    <meta name="twitter:description" content="Marine Weather Dashboard">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            @apply bg-slate-950 text-slate-100;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            @apply bg-slate-950;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            @apply bg-slate-800 rounded-full;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            @apply bg-slate-700;
+        }
+
+        .glass {
+            backdrop-filter: blur(10px);
+            @apply bg-white/5 border border-white/10;
+        }
+
+        .status-safe {
+            @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+        }
+
+        .status-caution {
+            @apply bg-amber-500/10 text-amber-400 border border-amber-500/20;
+        }
+
+        .status-danger {
+            @apply bg-rose-500/10 text-rose-400 border border-rose-500/20;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes wave {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .animate-wave {
+            animation: wave 3s ease-in-out infinite;
+        }
+
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .leaflet-container {
+            @apply bg-slate-900 rounded-xl overflow-hidden;
+        }
+
+        .safe-area {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden pb-16 md:pb-0">
+
+    <!-- HEADER -->
+    <header class="sticky top-0 z-50 border-b border-slate-900 bg-slate-950/90 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="bg-gradient-to-tr from-blue-600 to-cyan-400 p-2 rounded-lg shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-ship text-white text-base md:text-xl"></i>
+                </div>
+                <div>
+                    <span class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 text-base md:text-lg tracking-tight">InaWave v2.0</span>
+                    <span class="text-[10px] block text-slate-400 font-medium tracking-wide">Marine Intelligence</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2">
+                <select id="languageSelect" class="bg-slate-900 hover:bg-slate-800 text-slate-200 px-2 py-1.5 rounded-lg text-xs border border-slate-800 cursor-pointer">
+                    <option value="id">🇮🇩 Bahasa</option>
+                    <option value="en">🇺🇸 English</option>
+                    <option value="ja">🇯🇵 日本語</option>
+                    <option value="zh">🇨🇳 中文</option>
+                </select>
+                <button onclick="fetchAllData()" class="bg-slate-900 hover:bg-slate-800 text-slate-200 p-2 rounded-lg transition-transform active:scale-95 border border-slate-800">
+                    <i id="refresh-icon" class="fa-solid fa-arrows-rotate"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 py-4 space-y-4">
+        
+        <!-- SAFETY ALERT BANNER -->
+        <div id="safety-alert-banner" class="hidden transition-all duration-300"></div>
+
+        <!-- TAB 1: DASHBOARD UTAMA -->
+        <div id="tab-dashboard" class="tab-content active space-y-4">
+            
+            <!-- Zone Selector & Mini Map -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <!-- REGION SELECTOR -->
+                <div class="lg:col-span-4 flex flex-col justify-between space-y-3 bg-gradient-to-b from-slate-900 to-slate-950 p-4 rounded-xl border border-slate-900">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-anchor text-blue-400"></i> Pilih Wilayah Perairan
+                        </h2>
+                        <div class="mt-3 space-y-2" id="area-selector-list">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Update Time -->
+                    <div class="pt-3 border-t border-slate-900 mt-2">
+                        <div class="flex items-center justify-between text-[11px] text-slate-400">
+                            <span>Data Terupdate:</span>
+                            <span id="update-timestamp" class="font-bold text-cyan-400">Memuat...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MINI MAP -->
+                <div class="lg:col-span-8 bg-slate-900 rounded-xl border border-slate-900 overflow-hidden relative min-h-[220px] lg:min-h-[300px] flex flex-col">
+                    <div class="absolute top-2 left-2 z-[400] bg-slate-950/90 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-900 text-[10px] font-semibold flex items-center gap-1.5">
+                        <span class="flex h-1.5 w-1.5 relative">
+                          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                          <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-blue-500"></span>
+                        </span>
+                        Radar Selat Bali - Lombok
+                    </div>
+                    <div id="map" class="w-full flex-grow h-[220px] lg:h-full"></div>
+                </div>
+            </div>
+
+            <!-- CURRENT CONDITIONS GRID -->
+            <div class="bg-slate-900 rounded-xl border border-slate-900 p-4 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-48 h-48 bg-blue-600/5 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-800/60 pb-3">
+                    <div>
+                        <span class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Kondisi Saat Ini</span>
+                        <h3 id="current-area-title" class="text-lg font-black text-slate-100 flex items-center gap-1.5 mt-0.5">
+                            <i class="fa-solid fa-location-crosshairs text-blue-500"></i> Memuat Data...
+                        </h3>
+                    </div>
+                    <div id="vessel-safety-badge" class="flex flex-wrap items-center gap-1.5">
+                        <!-- Badges filled by JS -->
+                    </div>
+                </div>
+
+                <!-- METRICS GRID -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <!-- Wave Height -->
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900 hover:border-blue-500/30 transition-all flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-400 text-[10px] mb-1">
+                            <span>Tinggi Gelombang</span>
+                            <i class="fa-solid fa-water text-blue-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-0.5">
+                                <span id="stat-wave-height" class="text-xl sm:text-2xl font-black text-slate-100">--</span>
+                                <span class="text-[10px] text-slate-400">meter</span>
+                            </div>
+                            <span id="stat-wave-status" class="text-[9px] font-bold px-1.5 py-0.5 rounded-full inline-block mt-1">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Wind Speed -->
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900 hover:border-cyan-500/30 transition-all flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-400 text-[10px] mb-1">
+                            <span>Kecepatan & Arah</span>
+                            <i class="fa-solid fa-wind text-cyan-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-0.5">
+                                <span id="stat-wind-speed" class="text-xl sm:text-2xl font-black text-slate-100">--</span>
+                                <span class="text-[10px] text-slate-400">knot</span>
+                            </div>
+                            <div class="flex items-center gap-1 mt-1 text-[10px] text-slate-300">
+                                <i id="wind-dir-arrow" class="fa-solid fa-arrow-up transform transition-transform"></i>
+                                <span id="stat-wind-direction">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Swell -->
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900 hover:border-indigo-500/30 transition-all flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-400 text-[10px] mb-1">
+                            <span>Alun (Swell)</span>
+                            <i class="fa-solid fa-wave-square text-indigo-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-0.5">
+                                <span id="stat-swell" class="text-xl sm:text-2xl font-black text-slate-100">--</span>
+                                <span class="text-[10px] text-slate-400">meter</span>
+                            </div>
+                            <div class="mt-1 text-[10px] text-slate-400">
+                                Periode: <span id="stat-swell-period" class="text-indigo-300 font-bold">--</span> s
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Temperature -->
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900 hover:border-amber-500/30 transition-all flex flex-col justify-between">
+                        <div class="flex items-center justify-between text-slate-400 text-[10px] mb-1">
+                            <span>Kondisi Cuaca</span>
+                            <span id="weather-icon-placeholder"><i class="fa-solid fa-cloud-sun text-amber-400 text-sm"></i></span>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline gap-0.5">
+                                <span id="stat-temp" class="text-xl sm:text-2xl font-black text-slate-100">--</span>
+                                <span class="text-[10px] text-slate-400">°C</span>
+                            </div>
+                            <span id="stat-weather-desc" class="text-[10px] text-slate-300 block truncate mt-1">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI RECOMMENDATIONS -->
+            <div class="bg-gradient-to-r from-indigo-950/50 to-slate-950 rounded-xl border border-indigo-500/20 p-4">
+                <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-robot text-indigo-400"></i>
+                    <span>Rekomendasi AI</span>
+                </h3>
+                
+                <div class="space-y-2.5" id="ai-recommendations">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: RADAR FULLSCREEN -->
+        <div id="tab-radar" class="tab-content space-y-4">
+            <div class="bg-slate-900 rounded-xl border border-slate-900 overflow-hidden flex flex-col h-[65vh]">
+                <div class="bg-slate-950 px-4 py-3 border-b border-slate-900 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-200">Radar Navigasi Selat & Jalur Kapal</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-semibold">Live Mode</span>
+                </div>
+                <div id="fullscreen-map" class="w-full flex-grow"></div>
+            </div>
+        </div>
+
+        <!-- TAB 3: FORECAST & ANALYTICS -->
+        <div id="tab-forecast" class="tab-content space-y-4">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <!-- CHART GRAFIK -->
+                <div class="lg:col-span-8 bg-slate-900 rounded-xl border border-slate-900 p-4 shadow-xl flex flex-col">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h4 class="font-extrabold text-slate-100 text-sm flex items-center gap-1.5">
+                                <i class="fa-solid fa-chart-line text-blue-400"></i> Grafik Prediksi 24 Jam
+                            </h4>
+                            <p class="text-[11px] text-slate-400">Tren gelombang dan angin per jam</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="switchForecastView('24h')" class="px-3 py-1.5 rounded text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white">24h</button>
+                            <button onclick="switchForecastView('7d')" class="px-3 py-1.5 rounded text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300">7 hari</button>
+                        </div>
+                    </div>
+                    <div class="flex-grow w-full min-h-[220px] relative">
+                        <canvas id="forecastChart" class="w-full"></canvas>
+                    </div>
+                </div>
+
+                <!-- TIDES & CROSSING -->
+                <div class="lg:col-span-4 space-y-4">
+                    <!-- TIDES -->
+                    <div class="bg-slate-900 rounded-xl border border-slate-900 p-4 shadow-xl">
+                        <h4 class="font-extrabold text-slate-100 text-sm flex items-center gap-1.5 mb-3">
+                            <i class="fa-solid fa-circle-nodes text-indigo-400"></i> Pasang Surut
+                        </h4>
+                        <div class="bg-slate-950 p-3.5 rounded-lg border border-slate-900">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[11px] text-slate-400">Fase Saat Ini:</span>
+                                <span id="tide-phase" class="text-[11px] font-bold text-cyan-400 uppercase">Mengukur...</span>
+                            </div>
+                            <div class="relative h-14 w-full flex items-center justify-center overflow-hidden">
+                                <svg class="absolute w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
+                                    <path id="wavePath" d="M0 20 Q 25 10, 50 20 T 100 20 L 100 40 L 0 40 Z" fill="rgba(14, 116, 144, 0.15)" stroke="#06b6d4" stroke-width="1.5"></path>
+                                </svg>
+                                <span id="tide-height-indicator" class="relative z-10 font-black text-base text-slate-100">+1.2 m</span>
+                            </div>
+                            <div class="flex justify-between text-[9px] text-slate-500 mt-2">
+                                <span>Pasang: +1.6m</span>
+                                <span>Surut: -0.4m</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CROSSING STATUS -->
+                    <div class="bg-slate-900 rounded-xl border border-slate-900 p-4 shadow-xl">
+                        <h4 class="font-extrabold text-slate-100 text-sm flex items-center gap-1.5 mb-3">
+                            <i class="fa-solid fa-route text-cyan-400"></i> Status Penyeberangan
+                        </h4>
+                        <div class="space-y-2.5" id="crossing-status-list">
+                            <!-- Filled by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: 7-DAY FORECAST -->
+        <div id="tab-7day" class="tab-content space-y-4">
+            <div class="bg-slate-900 rounded-xl border border-slate-900 p-4">
+                <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 mb-4">
+                    <i class="fa-solid fa-calendar-days text-emerald-400"></i>
+                    <span>Prediksi 7 Hari</span>
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3" id="forecast-7day-grid">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: SETTINGS -->
+        <div id="tab-settings" class="tab-content space-y-4">
+            <div class="bg-slate-900 rounded-xl border border-slate-900 p-6 max-w-md">
+                <h3 class="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-gear text-emerald-400"></i>
+                    <span>Pengaturan Aplikasi</span>
+                </h3>
+                
+                <div class="space-y-4">
+                    <!-- Language -->
+                    <div>
+                        <label class="text-sm font-bold text-slate-300 block mb-2">Bahasa</label>
+                        <select id="languageSelectModal" onchange="changeLanguage(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200">
+                            <option value="id">🇮🇩 Bahasa Indonesia</option>
+                            <option value="en">🇺🇸 English</option>
+                            <option value="ja">🇯🇵 日本語</option>
+                            <option value="zh">🇨🇳 中文</option>
+                        </select>
+                    </div>
+
+                    <!-- Unit Selection -->
+                    <div>
+                        <label class="text-sm font-bold text-slate-300 block mb-2">Satuan Pengukuran</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="units" value="metric" checked class="w-4 h-4">
+                                <span class="text-sm text-slate-300">Metrik (m, km/h, °C)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="units" value="imperial" class="w-4 h-4">
+                                <span class="text-sm text-slate-300">Imperial (ft, mph, °F)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Notifications -->
+                    <div>
+                        <label class="text-sm font-bold text-slate-300 block mb-2">Notifikasi</label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="notificationToggle" checked class="w-4 h-4">
+                            <span class="text-sm text-slate-300">Aktifkan notifikasi peringatan</span>
+                        </label>
+                    </div>
+
+                    <!-- PWA Install -->
+                    <div>
+                        <button id="pwa-install-btn" class="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-emerald-900/20">
+                            <i class="fa-solid fa-mobile-screen-button"></i>
+                            <span>Instal sebagai Aplikasi</span>
+                        </button>
+                    </div>
+
+                    <!-- About -->
+                    <div class="pt-4 border-t border-slate-800">
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            <strong>InaWave v2.0</strong> - Dashboard Cuaca Maritim Profesional untuk Bali-Lombok<br>
+                            © 2026 All Rights Reserved<br>
+                            Data: Open-Meteo API, BMKG
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION BAR -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-950/95 backdrop-blur-md border-t border-slate-900 z-50 safe-area">
+        <div class="grid grid-cols-5 h-14 text-center">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center text-blue-400">
+                <i class="fa-solid fa-chart-pie text-lg"></i>
+                <span class="text-[9px] font-medium mt-1">Dashboard</span>
+            </button>
+            <button onclick="switchTab('radar')" id="nav-radar" class="flex flex-col items-center justify-center text-slate-500">
+                <i class="fa-solid fa-map-location-dot text-lg"></i>
+                <span class="text-[9px] font-medium mt-1">Radar</span>
+            </button>
+            <button onclick="switchTab('forecast')" id="nav-forecast" class="flex flex-col items-center justify-center text-slate-500">
+                <i class="fa-solid fa-chart-line text-lg"></i>
+                <span class="text-[9px] font-medium mt-1">Prediksi</span>
+            </button>
+            <button onclick="switchTab('7day')" id="nav-7day" class="flex flex-col items-center justify-center text-slate-500">
+                <i class="fa-solid fa-calendar-days text-lg"></i>
+                <span class="text-[9px] font-medium mt-1">7 Hari</span>
+            </button>
+            <button onclick="switchTab('settings')" id="nav-settings" class="flex flex-col items-center justify-center text-slate-500">
+                <i class="fa-solid fa-gear text-lg"></i>
+                <span class="text-[9px] font-medium mt-1">Setelan</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // ============ CONFIGURATION ============
+        const MARINE_ZONES = [
+            { id: 'selat-lombok', name: 'Selat Lombok', lat: -8.55, lon: 115.75, waveLimit: 2.0, desc: 'Padang Bai - Lembar - Gili' },
+            { id: 'selat-badung', name: 'Selat Badung', lat: -8.78, lon: 115.35, waveLimit: 1.5, desc: 'Sanur - Nusa Penida' },
+            { id: 'selat-bali', name: 'Selat Bali', lat: -8.42, lon: 114.45, waveLimit: 1.25, desc: 'Ketapang - Gilimanuk' },
+            { id: 'gili-matra', name: 'Perairan Gili Matra', lat: -8.35, lon: 116.04, waveLimit: 1.5, desc: 'Gili Trawangan - Lombok' }
+        ];
+
+        // ============ LANGUAGE TRANSLATIONS ============
+        const translations = {
+            id: {
+                waveHeight: 'Tinggi Gelombang',
+                windSpeed: 'Kecepatan Angin',
+                swell: 'Alun (Swell)',
+                weather: 'Cuaca',
+                safe: 'AMAN',
+                caution: 'WASPADA',
+                danger: 'BAHAYA',
+                lowWaves: 'GELOMBANG RENDAH (AMAN)',
+                moderateWaves: 'GELOMBANG SEDANG (WASPADA)',
+                highWaves: 'GELOMBANG TINGGI (BAHAYA!)',
+                bestDeparture: 'Waktu Keberangkatan Terbaik:',
+                aiRec: 'Rekomendasi AI',
+                fisherman: 'Nelayan',
+                fastboat: 'Fast Boat',
+                ferry: 'Feri',
+                safe: 'AMAN',
+                caution: 'WASPADA',
+                danger: 'BAHAYA',
+                risingTide: 'Pasang Air Laut',
+                fallingTide: 'Surut Air Laut'
+            },
+            en: {
+                waveHeight: 'Wave Height',
+                windSpeed: 'Wind Speed',
+                swell: 'Swell',
+                weather: 'Weather',
+                safe: 'SAFE',
+                caution: 'CAUTION',
+                danger: 'DANGER',
+                lowWaves: 'LOW WAVES (SAFE)',
+                moderateWaves: 'MODERATE WAVES (CAUTION)',
+                highWaves: 'HIGH WAVES (DANGER!)',
+                bestDeparture: 'Best Departure Time:',
+                aiRec: 'AI Recommendations',
+                fisherman: 'Fisherman',
+                fastboat: 'Fast Boat',
+                ferry: 'Ferry',
+                risingTide: 'Rising Tide',
+                fallingTide: 'Falling Tide'
+            },
+            ja: {
+                waveHeight: '波の高さ',
+                windSpeed: '風速',
+                swell: 'うねり',
+                weather: '天気',
+                safe: '安全',
+                caution: '注意',
+                danger: '危険',
+                lowWaves: '低波 (安全)',
+                moderateWaves: '中程度の波 (注意)',
+                highWaves: '高波 (危険!)',
+                bestDeparture: '最適な出発時間:',
+                aiRec: 'AI推奨事項',
+                fisherman: '漁師',
+                fastboat: 'ファストボート',
+                ferry: 'フェリー',
+                risingTide: '満潮',
+                fallingTide: '干潮'
+            },
+            zh: {
+                waveHeight: '波浪高度',
+                windSpeed: '风速',
+                swell: '涌浪',
+                weather: '天气',
+                safe: '安全',
+                caution: '警告',
+                danger: '危险',
+                lowWaves: '低浪(安全)',
+                moderateWaves: '中等浪(警告)',
+                highWaves: '高浪(危险!)',
+                bestDeparture: '最佳出发时间:',
+                aiRec: 'AI建议',
+                fisherman: '渔民',
+                fastboat: '快艇',
+                ferry: '渡轮',
+                risingTide: '涨潮',
+                fallingTide: '落潮'
+            }
+        };
+
+        // ============ STATE VARIABLES ============
+        let activeZoneId = 'selat-lombok';
+        let currentLanguage = localStorage.getItem('language') || 'id';
+        let map;
+        let fsMap;
+        let mapMarkers = {};
+        let fsMarkers = {};
+        let forecastChart = null;
+        let loadedZoneData = {};
+        let deferredPrompt = null;
+        let forecastViewMode = '24h';
+
+        // ============ INITIALIZATION ============
+        window.onload = function() {
+            updateLanguageUI();
+            initMap();
+            initFullscreenMap();
+            buildAreaSelectors();
+            fetchAllData();
+            animateSimulatedTides();
+            initPWA();
+            
+            // Auto refresh every 3 minutes
+            setInterval(fetchAllData, 180000);
+        };
+
+        // ============ LANGUAGE FUNCTIONS ============
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            updateLanguageUI();
+            document.getElementById('languageSelectModal').value = lang;
+            document.getElementById('languageSelect').value = lang;
+        }
+
+        function updateLanguageUI() {
+            document.getElementById('languageSelect').value = currentLanguage;
+            document.getElementById('languageSelectModal').value = currentLanguage;
+        }
+
+        function t(key) {
+            return translations[currentLanguage]?.[key] || translations.id[key] || key;
+        }
+
+        // ============ PWA FUNCTIONS ============
+        function initPWA() {
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                const installBtn = document.getElementById('pwa-install-btn');
+                if (installBtn) {
+                    installBtn.style.display = 'flex';
+                }
+            });
+
+            document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        console.log('App installed');
+                    }
+                    deferredPrompt = null;
+                }
+            });
+        }
+
+        // ============ TAB SWITCHING ============
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+
+            const navIds = ['dashboard', 'radar', 'forecast', '7day', 'settings'];
+            navIds.forEach(id => {
+                const navBtn = document.getElementById(`nav-${id}`);
+                if (id === tabId) {
+                    navBtn.classList.remove('text-slate-500');
+                    navBtn.classList.add('text-blue-400');
+                } else {
+                    navBtn.classList.remove('text-blue-400');
+                    navBtn.classList.add('text-slate-500');
+                }
+            });
+
+            if (tabId === 'radar' && fsMap) {
+                setTimeout(() => fsMap.invalidateSize(), 100);
+            }
+        }
+
+        function switchForecastView(mode) {
+            forecastViewMode = mode;
+            updateUIMetrics();
+        }
+
+        // ============ MAP FUNCTIONS ============
+        function initMap() {
+            map = L.map('map', {
+                center: [-8.55, 115.3],
+                zoom: 8.8,
+                zoomControl: false,
+                attributionControl: false
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 12,
+                minZoom: 8
+            }).addTo(map);
+
+            addZoneMarkersToMap(map, mapMarkers);
+        }
+
+        function initFullscreenMap() {
+            fsMap = L.map('fullscreen-map', {
+                center: [-8.55, 115.3],
+                zoom: 9.2,
+                zoomControl: true,
+                attributionControl: false
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 12,
+                minZoom: 8
+            }).addTo(fsMap);
+
+            addZoneMarkersToMap(fsMap, fsMarkers);
+        }
+
+        function addZoneMarkersToMap(mapObj, markerStorage) {
+            MARINE_ZONES.forEach(zone => {
+                const customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `
+                        <div class="relative flex items-center justify-center">
+                            <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-blue-500 opacity-20"></span>
+                            <div class="h-6 w-6 rounded-full bg-slate-950 border-2 border-cyan-400 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                                <i class="fa-solid fa-ship text-[9px] text-cyan-400"></i>
+                            </div>
+                        </div>
+                    `,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+
+                const marker = L.marker([zone.lat, zone.lon], { icon: customIcon }).addTo(mapObj);
+                markerStorage[zone.id] = marker;
+
+                marker.on('click', () => {
+                    selectZone(zone.id);
+                    if (mapObj === fsMap) switchTab('dashboard');
+                });
+
+                marker.bindTooltip(`
+                    <div class="bg-slate-950 text-slate-100 p-2 rounded border border-slate-900 text-[10px] font-semibold">
+                        <span class="text-cyan-400 font-bold block">${zone.name}</span>
+                        <span class="text-[9px] text-slate-400 font-normal">${zone.desc}</span>
+                    </div>
+                `, {
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: 'bg-transparent border-none shadow-none'
+                });
+            });
+        }
+
+        // ============ ZONE SELECTION ============
+        function buildAreaSelectors() {
+            const listContainer = document.getElementById('area-selector-list');
+            listContainer.innerHTML = '';
+
+            MARINE_ZONES.forEach(zone => {
+                const btn = document.createElement('button');
+                btn.id = `btn-${zone.id}`;
+                btn.className = `w-full text-left p-2.5 rounded-lg border transition-all flex items-center justify-between group ${
+                    zone.id === activeZoneId 
+                    ? 'bg-blue-600/15 border-blue-500/80 shadow-md' 
+                    : 'bg-slate-950 border-slate-900/80 hover:bg-slate-900'
+                }`;
+                btn.onclick = () => selectZone(zone.id);
+
+                btn.innerHTML = `
+                    <div class="flex items-center space-x-2.5">
+                        <div class="p-1.5 rounded-md ${zone.id === activeZoneId ? 'bg-blue-600 text-white' : 'bg-slate-900 text-slate-400'} transition-all">
+                            <i class="fa-solid fa-water text-xs"></i>
+                        </div>
+                        <div>
+                            <span class="font-bold text-xs block ${zone.id === activeZoneId ? 'text-blue-400' : 'text-slate-200'}">${zone.name}</span>
+                            <span class="text-[9px] text-slate-500">${zone.desc}</span>
+                        </div>
+                    </div>
+                    <div>
+                        <i class="fa-solid fa-chevron-right text-[9px] text-slate-600"></i>
+                    </div>
+                `;
+
+                listContainer.appendChild(btn);
+            });
+        }
+
+        function selectZone(zoneId) {
+            activeZoneId = zoneId;
+
+            MARINE_ZONES.forEach(zone => {
+                const btn = document.getElementById(`btn-${zone.id}`);
+                const iconDiv = btn.querySelector('.p-1.5');
+                const titleSpan = btn.querySelector('span.font-bold');
+
+                if (zone.id === activeZoneId) {
+                    btn.className = 'w-full text-left p-2.5 rounded-lg border border-blue-500/80 bg-blue-600/15 transition-all flex items-center justify-between group shadow-md';
+                    iconDiv.className = 'p-1.5 rounded-md bg-blue-600 text-white transition-all';
+                    titleSpan.className = 'font-bold text-xs block text-blue-400';
+                } else {
+                    btn.className = 'w-full text-left p-2.5 rounded-lg border border-slate-900/80 bg-slate-950 hover:bg-slate-900 transition-all flex items-center justify-between group';
+                    iconDiv.className = 'p-1.5 rounded-md bg-slate-900 text-slate-400 transition-all';
+                    titleSpan.className = 'font-bold text-xs block text-slate-200';
+                }
+            });
+
+            const target = MARINE_ZONES.find(z => z.id === zoneId);
+            if (target && map) {
+                map.setView([target.lat, target.lon], 9.2, { animate: true, duration: 0.6 });
+            }
+
+            updateUIMetrics();
+        }
+
+        // ============ DATA FETCHING ============
+        async function fetchAllData() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.classList.add('animate-spin');
+            
+            const updateStamp = document.getElementById('update-timestamp');
+            updateStamp.innerText = 'Sync...';
+
+            try {
+                for (let zone of MARINE_ZONES) {
+                    // Fetch Marine Data
+                    const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${zone.lat}&longitude=${zone.lon}&current=wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period&hourly=wave_height,wave_direction,wave_period&daily=wave_height_max,swell_wave_height_max&timezone=Asia%2FSingapore`;
+                    
+                    // Fetch Weather Data
+                    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${zone.lat}&longitude=${zone.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m&hourly=wave_height,temperature_2m,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Asia%2FSingapore`;
+
+                    try {
+                        const marineRes = await fetch(marineUrl);
+                        const marineData = await marineRes.json();
+                        
+                        const weatherRes = await fetch(weatherUrl);
+                        const weatherData = await weatherRes.json();
+                        
+                        const weatherText = mapWeatherCode(weatherData.current.weather_code);
+
+                        loadedZoneData[zone.id] = {
+                            name: zone.name,
+                            desc: zone.desc,
+                            lat: zone.lat,
+                            lon: zone.lon,
+                            waveLimit: zone.waveLimit,
+                            
+                            waveHeight: marineData.current.wave_height,
+                            waveDir: marineData.current.wave_direction,
+                            wavePeriod: marineData.current.wave_period,
+                            swellHeight: marineData.current.swell_wave_height,
+                            swellPeriod: marineData.current.swell_wave_period,
+                            
+                            temp: weatherData.current.temperature_2m,
+                            windSpeed: Math.round(weatherData.current.wind_speed_10m * 0.539957),
+                            windDir: weatherData.current.wind_direction_10m,
+                            weatherDesc: weatherText.desc,
+                            weatherIcon: weatherText.icon,
+                            
+                            hourlyLabels: marineData.hourly.time.slice(0, 24).map(t => t.split('T')[1].substring(0, 5)),
+                            hourlyWaves: marineData.hourly.wave_height.slice(0, 24),
+                            hourlyWinds: weatherData.hourly.wind_speed_10m.slice(0, 24).map(ws => Math.round(ws * 0.539957)),
+                            
+                            dailyLabels: marineData.daily.time.slice(0, 7),
+                            dailyWaves: marineData.daily.wave_height_max.slice(0, 7),
+                            dailyTemps: weatherData.daily.temperature_2m_max.slice(0, 7),
+                            dailyWeatherCodes: weatherData.daily.weather_code.slice(0, 7)
+                        };
+                    } catch (err) {
+                        console.error(`Error fetching data for ${zone.name}:`, err);
+                        loadedZoneData[zone.id] = generateFallbackData(zone);
+                    }
+                }
+
+                updateUIMetrics();
+                updateCrossingStatusPanel();
+                updateEmergencyAlertBanner();
+                buildForecast7Day();
+
+                const now = new Date();
+                updateStamp.innerText = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+            } catch (err) {
+                console.error("Data sync failed:", err);
+            } finally {
+                setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600);
+            }
+        }
+
+        // ============ WEATHER CODE MAPPING ============
+        function mapWeatherCode(code) {
+            const codes = {
+                0: { desc: 'Cerah', desc_en: 'Clear', icon: 'fa-sun text-amber-400' },
+                1: { desc: 'Cerah Berawan', desc_en: 'Mostly Clear', icon: 'fa-cloud-sun text-cyan-300' },
+                2: { desc: 'Berawan', desc_en: 'Partly Cloudy', icon: 'fa-cloud text-slate-400' },
+                3: { desc: 'Berawan Tebal', desc_en: 'Overcast', icon: 'fa-cloud text-slate-500' },
+                45: { desc: 'Kabut', desc_en: 'Foggy', icon: 'fa-smog text-slate-400' },
+                51: { desc: 'Gerimis', desc_en: 'Drizzle', icon: 'fa-cloud-rain text-blue-300' },
+                61: { desc: 'Hujan Ringan', desc_en: 'Slight Rain', icon: 'fa-cloud-showers-heavy text-blue-500' },
+                63: { desc: 'Hujan Sedang', desc_en: 'Moderate Rain', icon: 'fa-cloud-showers-heavy text-blue-600' },
+                95: { desc: 'Hujan Petir', desc_en: 'Thunderstorm', icon: 'fa-cloud-bolt text-amber-500' }
+            };
+            return codes[code] || { desc: 'Berawan', desc_en: 'Cloudy', icon: 'fa-cloud text-slate-400' };
+        }
+
+        // ============ FALLBACK DATA GENERATION ============
+        function generateFallbackData(zone) {
+            const now = new Date();
+            const timeLabels = [];
+            for(let i=0; i<24; i++) {
+                let hour = (now.getHours() + i) % 24;
+                timeLabels.push(`${hour.toString().padStart(2, '0')}:00`);
+            }
+
+            const dailyLabels = [];
+            for(let i=0; i<7; i++) {
+                const date = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+                dailyLabels.push(date.toISOString().split('T')[0]);
+            }
+
+            return {
+                name: zone.name,
+                desc: zone.desc,
+                lat: zone.lat,
+                lon: zone.lon,
+                waveLimit: zone.waveLimit,
+                
+                waveHeight: parseFloat((Math.random() * 1.3 + 0.4).toFixed(2)),
+                waveDir: Math.round(Math.random() * 360),
+                wavePeriod: parseFloat((Math.random() * 3 + 4).toFixed(1)),
+                swellHeight: parseFloat((Math.random() * 1.0 + 0.3).toFixed(2)),
+                swellPeriod: parseFloat((Math.random() * 2 + 5).toFixed(1)),
+                
+                temp: Math.round(Math.random() * 3 + 27),
+                windSpeed: Math.round(Math.random() * 12 + 6),
+                windDir: Math.round(Math.random() * 360),
+                weatherDesc: 'Cerah Berawan',
+                weatherIcon: 'fa-cloud-sun text-cyan-300',
+                
+                hourlyLabels: timeLabels,
+                hourlyWaves: Array.from({length: 24}, () => parseFloat((Math.random() * 1.2 + 0.5).toFixed(2))),
+                hourlyWinds: Array.from({length: 24}, () => Math.round(Math.random() * 12 + 5)),
+                
+                dailyLabels: dailyLabels,
+                dailyWaves: Array.from({length: 7}, () => parseFloat((Math.random() * 2.0 + 0.5).toFixed(2))),
+                dailyTemps: Array.from({length: 7}, () => Math.round(Math.random() * 3 + 26)),
+                dailyWeatherCodes: Array(7).fill(2)
+            };
+        }
+
+        // ============ UI UPDATE FUNCTIONS ============
+        function updateUIMetrics() {
+            const data = loadedZoneData[activeZoneId];
+            if (!data) return;
+
+            document.getElementById('current-area-title').innerHTML = `
+                <i class="fa-solid fa-location-crosshairs text-blue-500"></i> ${data.name}
+            `;
+
+            const waveHeightElem = document.getElementById('stat-wave-height');
+            const waveStatusElem = document.getElementById('stat-wave-status');
+            
+            waveHeightElem.innerText = data.waveHeight !== null ? data.waveHeight.toFixed(2) : '--';
+            
+            let waveClass = '';
+            let waveStatus = '';
+            
+            if (data.waveHeight < 1.25) {
+                waveStatus = t('lowWaves');
+                waveClass = 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20';
+            } else if (data.waveHeight >= 1.25 && data.waveHeight < 2.0) {
+                waveStatus = t('moderateWaves');
+                waveClass = 'bg-amber-500/15 text-amber-400 border border-amber-500/20';
+            } else {
+                waveStatus = t('highWaves');
+                waveClass = 'bg-rose-500/15 text-rose-400 border border-rose-500/20';
+            }
+            
+            waveStatusElem.innerText = waveStatus;
+            waveStatusElem.className = `text-[9px] font-extrabold px-2 py-0.5 rounded-full inline-block mt-1 ${waveClass}`;
+
+            document.getElementById('stat-wind-speed').innerText = data.windSpeed !== null ? data.windSpeed : '--';
+            document.getElementById('stat-wind-direction').innerText = getCardinalDirection(data.windDir);
+            
+            const arrow = document.getElementById('wind-dir-arrow');
+            arrow.style.transform = `rotate(${data.windDir}deg)`;
+
+            document.getElementById('stat-swell').innerText = data.swellHeight !== null ? data.swellHeight.toFixed(2) : '--';
+            document.getElementById('stat-swell-period').innerText = data.swellPeriod !== null ? data.swellPeriod.toFixed(1) : '--';
+
+            document.getElementById('stat-temp').innerText = data.temp !== null ? Math.round(data.temp) : '--';
+            document.getElementById('stat-weather-desc').innerText = data.weatherDesc;
+            document.getElementById('weather-icon-placeholder').innerHTML = `<i class="fa-solid ${data.weatherIcon} text-sm"></i>`;
+
+            updateVesselSafetyBadge(data);
+            updateAIRecommendations(data);
+            drawForecastChart(data);
+        }
+
+        function updateVesselSafetyBadge(data) {
+            const container = document.getElementById('vessel-safety-badge');
+            container.innerHTML = '';
+
+            let nelayanStatus = 'safe'; 
+            let fastboatStatus = 'safe';
+            let ferryStatus = 'safe';
+
+            if (data.waveHeight >= 1.25 || data.windSpeed >= 15) {
+                nelayanStatus = 'danger';
+            } else if (data.waveHeight >= 0.75 || data.windSpeed >= 10) {
+                nelayanStatus = 'caution';
+            }
+
+            if (data.waveHeight >= 2.0 || data.windSpeed >= 21) {
+                fastboatStatus = 'danger';
+            } else if (data.waveHeight >= 1.25 || data.windSpeed >= 15) {
+                fastboatStatus = 'caution';
+            }
+
+            if (data.waveHeight >= 2.5 || data.windSpeed >= 25) {
+                ferryStatus = 'danger';
+            } else if (data.waveHeight >= 1.75 || data.windSpeed >= 20) {
+                ferryStatus = 'caution';
+            }
+
+            const getBadgeHTML = (vesselName, status, icon) => {
+                let badgeColor = '';
+                if (status === 'safe') badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+                else if (status === 'caution') badgeColor = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+                else badgeColor = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+
+                return `
+                    <div class="px-2 py-0.5 rounded border ${badgeColor} text-[9px] font-bold flex items-center gap-1">
+                        <i class="fa-solid ${icon}"></i>
+                        <span>${vesselName}</span>
+                    </div>
+                `;
+            };
+
+            container.innerHTML = `
+                ${getBadgeHTML(t('fisherman'), nelayanStatus, 'fa-fish')}
+                ${getBadgeHTML(t('fastboat'), fastboatStatus, 'fa-bolt')}
+                ${getBadgeHTML(t('ferry'), ferryStatus, 'fa-ship')}
+            `;
+        }
+
+        function updateAIRecommendations(data) {
+            const container = document.getElementById('ai-recommendations');
+            container.innerHTML = '';
+
+            const vessels = [
+                { key: 'fisherman', name: t('fisherman'), icon: 'fa-fish', maxWave: 1.25, maxWind: 15 },
+                { key: 'fastboat', name: t('fastboat'), icon: 'fa-bolt', maxWave: 2.0, maxWind: 21 },
+                { key: 'ferry', name: t('ferry'), icon: 'fa-ship', maxWave: 2.5, maxWind: 25 }
+            ];
+
+            vessels.forEach(vessel => {
+                const isSafe = data.waveHeight < vessel.maxWave && data.windSpeed < vessel.maxWind;
+                const statusClass = isSafe ? 'status-safe' : 'status-danger';
+                const statusText = isSafe ? t('safe') : t('danger');
+
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-lg border ${statusClass} flex items-center justify-between`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid ${vessel.icon}"></i>
+                        <span class="font-bold text-sm">${vessel.name}</span>
+                    </div>
+                    <span class="text-xs font-bold">${statusText}</span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function getCardinalDirection(angle) {
+            const directions = ['Utara', 'Timur Laut', 'Timur', 'Tenggara', 'Selatan', 'Barat Daya', 'Barat', 'Barat Laut'];
+            return directions[Math.round(angle / 45) % 8];
+        }
+
+        function drawForecastChart(data) {
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+
+            const useData = forecastViewMode === '24h' 
+                ? { labels: data.hourlyLabels, waves: data.hourlyWaves, winds: data.hourlyWinds }
+                : { labels: data.dailyLabels, waves: data.dailyWaves, winds: Array(7).fill(0) };
+
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: useData.labels,
+                    datasets: [
+                        {
+                            label: 'Gelombang (m)',
+                            data: useData.waves,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            borderWidth: 2,
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            yAxisID: 'yWave'
+                        },
+                        {
+                            label: 'Angin (Knot)',
+                            data: useData.winds,
+                            borderColor: '#06b6d4',
+                            backgroundColor: 'rgba(6, 182, 212, 0.05)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            tension: 0.35,
+                            fill: false,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            yAxisID: 'yWind'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { display: true, labels: { color: '#cbd5e1', font: { size: 11 } } },
+                        tooltip: {
+                            backgroundColor: '#020617',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#e2e8f0',
+                            borderColor: '#1e293b',
+                            borderWidth: 1,
+                            padding: 10,
+                            bodyFont: { family: 'Inter', size: 11 }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(30, 41, 59, 0.2)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { size: 10, family: 'Inter' }
+                            }
+                        },
+                        yWave: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            grid: { color: 'rgba(30, 41, 59, 0.2)' },
+                            ticks: {
+                                color: '#3b82f6',
+                                font: { size: 10 }
+                            }
+                        },
+                        yWind: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                color: '#06b6d4',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function buildForecast7Day() {
+            const data = loadedZoneData[activeZoneId];
+            if (!data || !data.dailyLabels) return;
+
+            const container = document.getElementById('forecast-7day-grid');
+            container.innerHTML = '';
+
+            data.dailyLabels.forEach((label, idx) => {
+                const date = new Date(label);
+                const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+                const weather = mapWeatherCode(data.dailyWeatherCodes[idx]);
+
+                const div = document.createElement('div');
+                div.className = 'bg-slate-950 p-3 rounded-lg border border-slate-800 hover:border-blue-500/30 transition-all';
+                div.innerHTML = `
+                    <div class="text-xs font-bold text-slate-300 mb-2">${dayName}</div>
+                    <div class="text-[10px] text-slate-400 mb-2">${label}</div>
+                    <i class="fa-solid ${weather.icon} block mb-2"></i>
+                    <div class="text-xs font-bold text-slate-100">Wave: ${data.dailyWaves[idx]?.toFixed(2) || '--'} m</div>
+                    <div class="text-xs text-slate-400">${data.dailyTemps[idx]}°C</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateCrossingStatusPanel() {
+            const container = document.getElementById('crossing-status-list');
+            container.innerHTML = '';
+
+            const routes = [
+                { name: 'Sanur ⇌ Nusa Penida', type: 'Fast Boat', zone: 'selat-badung', limit: 1.5 },
+                { name: 'Padang Bai ⇌ Lembar (Lombok)', type: 'Feri Ro-Ro', zone: 'selat-lombok', limit: 2.3 },
+                { name: 'Padang Bai ⇌ Gili Trawangan', type: 'Fast Boat', zone: 'selat-lombok', limit: 1.8 }
+            ];
+
+            routes.forEach(route => {
+                const z = loadedZoneData[route.zone];
+                let statusText = 'Layak Layar';
+                let statusColor = 'status-safe';
+
+                if (z && z.waveHeight >= route.limit) {
+                    statusText = 'Ditunda';
+                    statusColor = 'status-danger';
+                } else if (z && z.waveHeight >= (route.limit * 0.75)) {
+                    statusText = 'Waspada';
+                    statusColor = 'status-caution';
+                }
+
+                const div = document.createElement('div');
+                div.className = `p-2.5 bg-slate-950 rounded-lg border border-slate-900 flex items-center justify-between`;
+                div.innerHTML = `
+                    <div>
+                        <span class="font-bold text-[11px] text-slate-100 block">${route.name}</span>
+                        <span class="text-[9px] text-slate-400 block mt-0.5">${route.type}</span>
+                    </div>
+                    <div class="px-2 py-0.5 rounded border ${statusColor} text-[9px] font-bold">
+                        <span>${statusText}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function updateEmergencyAlertBanner() {
+            const banner = document.getElementById('safety-alert-banner');
+            banner.innerHTML = '';
+            banner.className = 'hidden';
+
+            let dangerousZones = [];
+            for (let id in loadedZoneData) {
+                if (loadedZoneData[id].waveHeight >= 1.75) {
+                    dangerousZones.push(loadedZoneData[id].name);
+                }
+            }
+
+            if (dangerousZones.length > 0) {
+                banner.className = 'block bg-gradient-to-r from-red-950/90 to-slate-950 rounded-xl border border-red-500/30 p-3.5 shadow-lg animate-pulse';
+                banner.innerHTML = `
+                    <div class="flex items-start space-x-2.5">
+                        <div class="bg-red-600 text-white p-1.5 rounded-lg mt-0.5">
+                            <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+                        </div>
+                        <div>
+                            <span class="font-extrabold text-xs text-red-400 block uppercase tracking-wide">⚠ Peringatan Gelombang Tinggi!</span>
+                            <p class="text-[10px] text-slate-300 leading-relaxed mt-0.5">
+                                Gelombang melampaui batas aman di: <span class="text-red-300 font-bold">${dangerousZones.join(', ')}</span>
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                banner.className = 'block bg-gradient-to-r from-emerald-950/60 to-slate-950 rounded-xl border border-emerald-500/20 p-3.5 shadow-md';
+                banner.innerHTML = `
+                    <div class="flex items-start space-x-2.5">
+                        <div class="bg-emerald-600/20 text-emerald-400 p-1.5 rounded-lg mt-0.5 border border-emerald-500/20">
+                            <i class="fa-solid fa-circle-check text-xs"></i>
+                        </div>
+                        <div>
+                            <span class="font-extrabold text-xs text-emerald-400 block uppercase tracking-wide">✓ Kondisi Laut Aman</span>
+                            <p class="text-[10px] text-slate-300 leading-relaxed mt-0.5">
+                                Semua jalur penyeberangan dalam kondisi aman. Selamat berlayar!
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function animateSimulatedTides() {
+            const tideHeightInd = document.getElementById('tide-height-indicator');
+            const tidePhaseText = document.getElementById('tide-phase');
+            const wavePath = document.getElementById('wavePath');
+            
+            let phaseAngle = 0;
+            
+            setInterval(() => {
+                phaseAngle += 0.05;
+                const tideVal = Math.sin(phaseAngle) * 1.0 + 0.6;
+                
+                tideHeightInd.innerText = `${tideVal >= 0 ? '+' : ''}${tideVal.toFixed(2)} m`;
+
+                const deriv = Math.cos(phaseAngle);
+                if (deriv > 0) {
+                    tidePhaseText.innerText = t('risingTide');
+                    tidePhaseText.className = 'text-[10px] font-bold text-emerald-400 uppercase';
+                } else {
+                    tidePhaseText.innerText = t('fallingTide');
+                    tidePhaseText.className = 'text-[10px] font-bold text-cyan-400 uppercase';
+                }
+
+                const waveAmp = 10 + Math.sin(phaseAngle) * 4;
+                const d = `M0 20 Q 25 ${20 - waveAmp}, 50 20 T 100 20 L 100 40 L 0 40 Z`;
+                wavePath.setAttribute('d', d);
+
+            }, 250);
+        }
+
+        // ============ EVENT LISTENERS ============
+        document.getElementById('languageSelect').addEventListener('change', (e) => {
+            changeLanguage(e.target.value);
+        });
+
+        document.getElementById('languageSelectModal').addEventListener('change', (e) => {
+            changeLanguage(e.target.value);
+        });
+
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('data:text/javascript,const CACHE_NAME="inawave-v2";self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE_NAME))});self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})').catch(err => console.log('[PWA] SW registration failed:', err));
+        }
+    </script>
+</body>
+</html>
